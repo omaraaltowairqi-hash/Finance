@@ -1,0 +1,11 @@
+{
+  "appId": "com.daftari.almali",
+  "appName": "دفتري المالي",
+  "webDir": "dist-native",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

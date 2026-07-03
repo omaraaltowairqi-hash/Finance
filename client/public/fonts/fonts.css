@@ -1,0 +1,3 @@
+/* خطوط التطبيق — Tajawal للعناوين والأرقام، IBM Plex Sans Arabic للنصوص
+   تُحمَّل من Google Fonts عند توفر الإنترنت، ومع fallback لخطوط النظام */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
