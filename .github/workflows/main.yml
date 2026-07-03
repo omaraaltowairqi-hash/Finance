@@ -1,0 +1,93 @@
+name: بناء APK - دفتري المالي
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: تحميل الكود
+        uses: actions/checkout@v4
+
+      - name: إعداد Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: إعداد Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: إعداد Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: تثبيت المكتبات
+        run: npm install --no-audit --no-fund
+
+      - name: بناء واجهة الويب
+        run: npx vite build --config vite.config.native.ts
+
+      - name: إضافة منصة Android
+        run: npx cap add android
+
+      - name: دمج ملفات Android المخصصة (قارئ الرسائل + الصلاحيات)
+        run: |
+          JAVA_DIR="android/app/src/main/java/com/daftari/almali"
+          mkdir -p "$JAVA_DIR"
+          cp android-src/MainActivity.java "$JAVA_DIR/MainActivity.java"
+          cp android-src/SmsReaderPlugin.java "$JAVA_DIR/SmsReaderPlugin.java"
+          cp android-src/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          if [ -f android-src/ic_launcher_background.xml ]; then
+            mkdir -p android/app/src/main/res/values
+            cp android-src/ic_launcher_background.xml android/app/src/main/res/values/ic_launcher_background.xml
+          fi
+          echo "تم دمج ملفات Android بنجاح"
+
+      - name: مزامنة Capacitor
+        run: npx cap sync android
+
+      - name: بناء APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: إعادة تسمية APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk daftari-almali.apk
+
+      - name: رفع APK كملف Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daftari-almali-apk
+          path: daftari-almali.apk
+          retention-days: 90
+
+      - name: نشر APK في Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.0-build${{ github.run_number }}
+          name: دفتري المالي - نسخة ${{ github.run_number }}
+          files: daftari-almali.apk
+          body: |
+            ## 📱 دفتري المالي - APK جاهز للتثبيت
+
+            ### التحميل والتثبيت:
+            1. اضغط على **daftari-almali.apk** بالأسفل لتحميله
+            2. انقل الملف لجوالك (أو حمّله مباشرة من متصفح الجوال)
+            3. اضغط على الملف واختر **تثبيت**
+            4. إذا ظهر تحذير "مصدر غير معروف" اضغط **السماح** ثم ثبّت
+
+            ### بعد التثبيت:
+            - افتح التطبيق واسمح بصلاحية قراءة الرسائل
+            - من صفحة الرسائل اختر بنوكك
+            - أدخل بياناتك المالية وابدأ!
+
+            🔒 جميع البيانات محلية على جهازك — لا تُرسل لأي خادم.
