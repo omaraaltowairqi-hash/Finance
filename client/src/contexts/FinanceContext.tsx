@@ -7,7 +7,7 @@ import {
   useState,
   ReactNode,
 } from "react";
-import { FinanceState, SEED_STATE, LineItem, SavingGoal } from "@/lib/financeData";
+import { FinanceState, SEED_STATE, LineItem, SavingGoal, Transaction } from "@/lib/financeData";
 import { IS_DEMO_BUILD } from "@/lib/buildFlags";
 
 const STORAGE_KEY = "wealth_tracker_state_v1";
@@ -17,6 +17,18 @@ interface FinanceContextValue {
   setMonth: (month: number) => void;
   updateActual: (itemId: string, month: number, value: number) => void;
   addToActual: (itemId: string, month: number, delta: number) => void;
+  // إضافة حركة مفصّلة (تُحدّث الإجمالي وتحفظ التفصيل معاً) — تُستخدم عند تأكيد رسالة بنكية
+  addTransaction: (
+    itemId: string,
+    month: number,
+    amount: number,
+    note: string,
+    source: "sms" | "manual",
+    dateISO?: string,
+  ) => void;
+  // حذف حركة مفصّلة وطرح مبلغها من إجمالي البند تلقائياً
+  removeTransaction: (transactionId: string) => void;
+  transactionsFor: (itemId: string, month: number) => Transaction[];
   updateTarget: (itemId: string, value: number) => void;
   updateName: (itemId: string, name: string) => void;
   updateGoalTotal: (goalId: string, total: number) => void;
@@ -31,6 +43,7 @@ function emptyState(): FinanceState {
   const base = structuredClone(SEED_STATE);
   base.items = base.items.map((i) => ({ ...i, target: 0, monthly: Array(12).fill(0) }));
   base.savingGoals = base.savingGoals.map((g) => ({ ...g, total: 0 }));
+  base.transactions = [];
   return base;
 }
 
@@ -48,6 +61,8 @@ function loadState(): FinanceState {
     if (!parsed.items || !Array.isArray(parsed.items)) return initialSeed();
     if (typeof parsed.currentMonth !== "number") parsed.currentMonth = SEED_STATE.currentMonth;
     if (!parsed.savingGoals) parsed.savingGoals = structuredClone(SEED_STATE.savingGoals);
+    // توافق مع بيانات محفوظة قبل إضافة سجل الحركات
+    if (!parsed.transactions || !Array.isArray(parsed.transactions)) parsed.transactions = [];
     return parsed;
   } catch {
     return initialSeed();
@@ -97,6 +112,76 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  // إضافة حركة مفصّلة: تزيد إجمالي البند وتحفظ التفصيل (الجهة/السبب) في السجل معاً
+  const addTransaction = useCallback(
+    (
+      itemId: string,
+      month: number,
+      amount: number,
+      note: string,
+      source: "sms" | "manual",
+      dateISO?: string,
+    ) => {
+      setState((s) => {
+        const tx: Transaction = {
+          id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          itemId,
+          month,
+          amount,
+          note,
+          source,
+          dateISO: dateISO ?? new Date().toISOString(),
+        };
+        return {
+          ...s,
+          items: s.items.map((i) =>
+            i.id === itemId
+              ? {
+                  ...i,
+                  monthly: i.monthly.map((v, idx) =>
+                    idx === month ? Math.max(0, (v || 0) + amount) : v,
+                  ),
+                }
+              : i,
+          ),
+          transactions: [...s.transactions, tx],
+        };
+      });
+    },
+    [],
+  );
+
+  // حذف حركة مفصّلة وطرح مبلغها من إجمالي البند تلقائياً (لتصحيح تصنيف خاطئ)
+  const removeTransaction = useCallback((transactionId: string) => {
+    setState((s) => {
+      const tx = s.transactions.find((t) => t.id === transactionId);
+      if (!tx) return s;
+      return {
+        ...s,
+        items: s.items.map((i) =>
+          i.id === tx.itemId
+            ? {
+                ...i,
+                monthly: i.monthly.map((v, idx) =>
+                  idx === tx.month ? Math.max(0, (v || 0) - tx.amount) : v,
+                ),
+              }
+            : i,
+        ),
+        transactions: s.transactions.filter((t) => t.id !== transactionId),
+      };
+    });
+  }, []);
+
+  const transactionsFor = useCallback(
+    (itemId: string, month: number) => {
+      return state.transactions
+        .filter((t) => t.itemId === itemId && t.month === month)
+        .sort((a, b) => new Date(b.dateISO).getTime() - new Date(a.dateISO).getTime());
+    },
+    [state.transactions],
+  );
+
   const updateTarget = useCallback((itemId: string, value: number) => {
     setState((s) => ({
       ...s,
@@ -132,13 +217,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setMonth,
       updateActual,
       addToActual,
+      addTransaction,
+      removeTransaction,
+      transactionsFor,
       updateTarget,
       updateName,
       updateGoalTotal,
       resetAll,
       clearData,
     }),
-    [state, setMonth, updateActual, addToActual, updateTarget, updateName, updateGoalTotal, resetAll, clearData],
+    [
+      state,
+      setMonth,
+      updateActual,
+      addToActual,
+      addTransaction,
+      removeTransaction,
+      transactionsFor,
+      updateTarget,
+      updateName,
+      updateGoalTotal,
+      resetAll,
+      clearData,
+    ],
   );
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

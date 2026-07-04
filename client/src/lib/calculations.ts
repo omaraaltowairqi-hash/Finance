@@ -116,11 +116,12 @@ export function rule503020(state: FinanceState): Rule503020 {
   // الاحتياجات: كل الفواتير الثابتة + كل الديون + مقاضي + بنزين + صيدلية
   const income = sumItemsYear(state, ["salary", "freelance", "invest_income", "extra_income"]);
   const fixedIds = ["electricity", "water", "phone_internet", "subscriptions", "rent", "other_bill"];
-  const debtIds = ["mortgage", "car_loan", "credit_card", "bnpl", "other_debt"];
-  const needsVarIds = ["groceries", "fuel", "pharmacy"];
+  const debtIds = ["mortgage", "car_loan", "credit_card", "bnpl", "personal_loan", "other_debt"];
+  const needsVarIds = ["groceries", "fuel", "pharmacy", "housekeeper_salary"];
   const needs = sumItemsYear(state, [...fixedIds, ...debtIds, ...needsVarIds]);
-  // الكماليات: توصيل + مطاعم + مصاريف أخرى
-  const wants = sumItemsYear(state, ["delivery", "dining", "other_var"]);
+  // الكماليات: توصيل + مطاعم + عزايم + مصاريف أخرى
+  // (الصدقة لا تُحسب هنا عمداً — عطاء اختياري، لا تصنّف كـ"حاجة" ولا "كماليّة")
+  const wants = sumItemsYear(state, ["delivery", "dining", "hosting", "other_var"]);
   const savings = sumItemsYear(state, ["emergency", "travel", "wedding", "other_saving"]);
 
   const needsRate = income === 0 ? 0 : needs / income;
@@ -215,6 +216,7 @@ export function unpaidEssentials(state: FinanceState, month: number): number {
     "car_loan",
     "credit_card",
     "bnpl",
+    "personal_loan",
   ];
   let count = 0;
   for (const i of state.items) {

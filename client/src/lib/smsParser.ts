@@ -349,6 +349,16 @@ export function looksLikeBankSms(raw: string): boolean {
   return hasAmount && hasKeyword;
 }
 
+// وصف قصير مفهوم لعرضه في "سجل التفاصيل" داخل البند — يُستخدم خصوصاً لبنود
+// "مصاريف أخرى" و"دخل إضافي" حتى يعرف المستخدم لاحقاً من أين جاء كل مبلغ.
+// الأولوية: اسم الجهة/المتجر (party) إن وُجد، وإلا نلخّص السبب (reason) بجملة قصيرة.
+export function smsNoteFor(p: ParsedSms): string {
+  if (p.party) return p.party;
+  // نأخذ أول جزء من reason قبل الشرطة الفاصلة أو النقطة، لتفادي جمل طويلة في القائمة
+  const short = p.reason.split(/[—-]|\.\s/)[0]?.trim();
+  return short || (p.kind === "income" ? "دخل من رسالة بنكية" : "مصروف من رسالة بنكية");
+}
+
 // معرّف بسيط لتفادي تكرار نفس الرسالة (بصمة مبنية على المبلغ + التاريخ + جزء من النص)
 export function smsFingerprint(p: ParsedSms): string {
   const base = `${p.amount}|${p.dateISO ?? ""}|${p.party ?? ""}|${p.raw.slice(0, 40)}`;
