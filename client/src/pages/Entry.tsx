@@ -27,6 +27,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const GROUP_ICONS: Record<GroupKey, React.ReactNode> = {
   income: <Wallet className="h-4 w-4" />,
@@ -130,9 +137,11 @@ function ItemRow({
   month: number;
   groupEval: "higher_better" | "reach_target" | "lower_better";
 }) {
-  const { updateActual, updateTarget, transactionsFor, removeTransaction } = useFinance();
+  const { state, updateActual, updateTarget, transactionsFor, removeTransaction, moveTransaction } =
+    useFinance();
   const [editingTarget, setEditingTarget] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [movingTxId, setMovingTxId] = useState<string | null>(null);
   const actual = item.monthly[month] || 0;
   const status = evaluateItem(item, month, groupEval);
   const details = transactionsFor(item.id, month);
@@ -212,36 +221,81 @@ function ItemRow({
             مصادر معروفة من إجمالي {fmt(actual)} <Riyal className="text-[10px]" /> هذا الشهر:
           </p>
           {details.map((t) => (
-            <div
-              key={t.id}
-              className="flex items-center justify-between gap-2 rounded-lg bg-background px-2.5 py-1.5"
-            >
-              <div className="flex min-w-0 items-center gap-1.5">
-                {t.source === "sms" ? (
-                  <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-primary/70" />
-                ) : (
-                  <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                )}
-                <div className="min-w-0 leading-tight">
-                  <p className="truncate text-xs font-medium">{t.note}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {new Date(t.dateISO).toLocaleDateString("ar-SA", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </p>
+            <div key={t.id} className="rounded-lg bg-background px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {t.source === "sms" ? (
+                    <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+                  ) : (
+                    <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0 leading-tight">
+                    <p className="truncate text-xs font-medium">{t.note}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {new Date(t.dateISO).toLocaleDateString("ar-SA", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="tabular text-xs font-semibold">{fmt(t.amount)}</span>
+                  <button
+                    onClick={() => setMovingTxId((cur) => (cur === t.id ? null : t.id))}
+                    title="نقل هذه الحركة لبند آخر"
+                    className={cn(
+                      "rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary",
+                      movingTxId === t.id && "bg-primary/10 text-primary",
+                    )}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => removeTransaction(t.id)}
+                    title="حذف هذه الحركة (وطرح مبلغها من الإجمالي)"
+                    className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="tabular text-xs font-semibold">{fmt(t.amount)}</span>
-                <button
-                  onClick={() => removeTransaction(t.id)}
-                  title="حذف هذه الحركة (وطرح مبلغها من الإجمالي)"
-                  className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
+
+              {movingTxId === t.id && (
+                <div className="mt-1.5 flex items-center gap-1.5 border-t border-border pt-1.5">
+                  <span className="shrink-0 text-[11px] text-muted-foreground">نقل إلى:</span>
+                  <Select
+                    value={item.id}
+                    onValueChange={(newItemId) => {
+                      if (newItemId === item.id) return;
+                      const target = state.items.find((i) => i.id === newItemId);
+                      moveTransaction(t.id, newItemId);
+                      setMovingTxId(null);
+                      toast.success(
+                        `تم نقل ${fmt(t.amount)} ﷼ (${t.note}) إلى «${target?.name}»`,
+                      );
+                    }}
+                  >
+                    <SelectTrigger className="h-8 flex-1 bg-background text-xs">
+                      <SelectValue placeholder="اختر البند" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GROUPS.map((g) => (
+                        <div key={g.key}>
+                          {state.items
+                            .filter((i) => i.group === g.key)
+                            .map((i) => (
+                              <SelectItem key={i.id} value={i.id}>
+                                {i.name}{" "}
+                                <span className="text-muted-foreground">— {g.title}</span>
+                              </SelectItem>
+                            ))}
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           ))}
         </div>

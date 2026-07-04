@@ -28,6 +28,8 @@ interface FinanceContextValue {
   ) => void;
   // حذف حركة مفصّلة وطرح مبلغها من إجمالي البند تلقائياً
   removeTransaction: (transactionId: string) => void;
+  // نقل حركة (ومبلغها) من بندها الحالي إلى بند آخر — يحافظ على وصف الرسالة والتاريخ
+  moveTransaction: (transactionId: string, newItemId: string) => void;
   transactionsFor: (itemId: string, month: number) => Transaction[];
   updateTarget: (itemId: string, value: number) => void;
   updateName: (itemId: string, name: string) => void;
@@ -173,6 +175,40 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // نقل حركة من بندها الحالي إلى بند آخر: يطرح المبلغ من القديم، يضيفه للجديد،
+  // ويُحدّث itemId في سجل الحركة نفسها فيبقى وصف الرسالة (اسم الجهة) والتاريخ كما هو.
+  const moveTransaction = useCallback((transactionId: string, newItemId: string) => {
+    setState((s) => {
+      const tx = s.transactions.find((t) => t.id === transactionId);
+      if (!tx || tx.itemId === newItemId) return s;
+      return {
+        ...s,
+        items: s.items.map((i) => {
+          if (i.id === tx.itemId) {
+            return {
+              ...i,
+              monthly: i.monthly.map((v, idx) =>
+                idx === tx.month ? Math.max(0, (v || 0) - tx.amount) : v,
+              ),
+            };
+          }
+          if (i.id === newItemId) {
+            return {
+              ...i,
+              monthly: i.monthly.map((v, idx) =>
+                idx === tx.month ? Math.max(0, (v || 0) + tx.amount) : v,
+              ),
+            };
+          }
+          return i;
+        }),
+        transactions: s.transactions.map((t) =>
+          t.id === transactionId ? { ...t, itemId: newItemId } : t,
+        ),
+      };
+    });
+  }, []);
+
   const transactionsFor = useCallback(
     (itemId: string, month: number) => {
       return state.transactions
@@ -219,6 +255,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addToActual,
       addTransaction,
       removeTransaction,
+      moveTransaction,
       transactionsFor,
       updateTarget,
       updateName,
@@ -233,6 +270,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addToActual,
       addTransaction,
       removeTransaction,
+      moveTransaction,
       transactionsFor,
       updateTarget,
       updateName,
