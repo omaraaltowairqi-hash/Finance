@@ -36,7 +36,7 @@ import {
   isNativeAndroid,
   RawSms,
 } from "@/lib/smsBridge";
-import { parseSms, looksLikeBankSms, smsFingerprint, ParsedSms } from "@/lib/smsParser";
+import { parseSms, looksLikeBankSms, smsFingerprint, smsNoteFor, ParsedSms } from "@/lib/smsParser";
 import { markProcessed, loadProcessed } from "@/lib/smsStore";
 import {
   BANKS,
@@ -55,7 +55,7 @@ interface Suggestion extends ParsedSms {
 type Phase = "idle" | "loading" | "ready" | "denied";
 
 export default function BankSms() {
-  const { state, addToActual } = useFinance();
+  const { state, addTransaction } = useFinance();
   const month = state.currentMonth;
 
   const [phase, setPhase] = useState<Phase>("idle");
@@ -126,11 +126,21 @@ export default function BankSms() {
   const confirm = (s: Suggestion) => {
     const item = state.items.find((i) => i.id === s.chosenItemId);
     if (!item) return;
-    addToActual(s.chosenItemId, month, s.amount);
+    // نحفظ مع المبلغ وصفاً مفهوماً (اسم الجهة عادةً) وتاريخ وصول الرسالة الحقيقي،
+    // حتى يقدر المستخدم بعدين يفتح البند ويشوف "من وين جاء" هذا الريال بالضبط.
+    const note = smsNoteFor(s);
+    addTransaction(
+      s.chosenItemId,
+      month,
+      s.amount,
+      note,
+      "sms",
+      new Date(s.smsDate).toISOString(),
+    );
     markProcessed(s.fingerprint, "added");
     setSuggestions((list) => list.filter((x) => x.fingerprint !== s.fingerprint));
     toast.success(
-      `أُضيف ${fmt(s.amount)} ﷼ إلى «${item.name}» في ${MONTHS[month]}`,
+      `أُضيف ${fmt(s.amount)} ﷼ (${note}) إلى «${item.name}» في ${MONTHS[month]}`,
     );
   };
 

@@ -79,10 +79,22 @@ export interface SavingGoal {
   total: number; // الهدف الكلي للتجميع
 }
 
+// حركة واحدة داخل بند — تحفظ "من وين جاء" كل مبلغ (خصوصاً المصنَّف ضمن "أخرى")
+export interface Transaction {
+  id: string;
+  itemId: string; // البند الذي أُضيف إليه
+  month: number; // 0-11
+  amount: number;
+  note: string; // وصف مفهوم: اسم الجهة/المتجر، أو سبب التصنيف
+  source: "sms" | "manual"; // من رسالة بنكية أو أُدخل يدوياً
+  dateISO: string; // تاريخ الحركة (وقت الرسالة أو وقت الإضافة)
+}
+
 export interface FinanceState {
   items: LineItem[];
   savingGoals: SavingGoal[];
   currentMonth: number; // 0-11
+  transactions: Transaction[]; // سجل تفاصيل الحركات (خصوصاً بنود "أخرى")
 }
 
 const m = (v: number) => Array(12).fill(v);
@@ -96,6 +108,7 @@ const arr = (vals: number[]) => {
 // البيانات الابتدائية — منسوخة حرفياً من ورقة "المدخلات الشهرية"
 export const SEED_STATE: FinanceState = {
   currentMonth: 6, // يوليو (الشهر المعروض افتراضياً في الإكسل)
+  transactions: [],
   items: [
     // الدخل والاستثمارات
     { id: "salary", name: "الراتب الشهري", group: "income", target: 25000, monthly: m(25000) },
@@ -140,6 +153,7 @@ export const SEED_STATE: FinanceState = {
       target: 0,
       monthly: arr([486, 486, 486, 486, 486, 486, 486, 0, 0, 0, 0, 0]),
     },
+    { id: "personal_loan", name: "قرض شخصي", group: "debt", target: 0, monthly: m(0) },
     { id: "other_debt", name: "التزام آخر", group: "debt", target: 1950, monthly: m(1950) },
 
     // المصاريف المتغيرة
@@ -148,6 +162,9 @@ export const SEED_STATE: FinanceState = {
     { id: "delivery", name: "تطبيقات توصيل", group: "variable", target: 500, monthly: m(500) },
     { id: "dining", name: "مطاعم وكافيهات", group: "variable", target: 500, monthly: m(500) },
     { id: "pharmacy", name: "صيدلية وعلاج", group: "variable", target: 400, monthly: m(400) },
+    { id: "housekeeper_salary", name: "راتب العمالة", group: "variable", target: 0, monthly: m(0) },
+    { id: "charity", name: "صدقة", group: "variable", target: 0, monthly: m(0) },
+    { id: "hosting", name: "عزايم", group: "variable", target: 0, monthly: m(0) },
     {
       id: "other_var",
       name: "مصاريف أخرى",

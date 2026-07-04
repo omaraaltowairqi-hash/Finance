@@ -20,6 +20,10 @@ import {
   PiggyBank,
   ChevronDown,
   Check,
+  ListTree,
+  MessageSquareText,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -126,10 +130,12 @@ function ItemRow({
   month: number;
   groupEval: "higher_better" | "reach_target" | "lower_better";
 }) {
-  const { updateActual, updateTarget } = useFinance();
+  const { updateActual, updateTarget, transactionsFor, removeTransaction } = useFinance();
   const [editingTarget, setEditingTarget] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const actual = item.monthly[month] || 0;
   const status = evaluateItem(item, month, groupEval);
+  const details = transactionsFor(item.id, month);
 
   const tone =
     status === "good" ? "good" : status === "bad" ? "bad" : "neutral";
@@ -146,12 +152,23 @@ function ItemRow({
               </StatusBadge>
             )}
           </div>
-          <button
-            onClick={() => setEditingTarget((v) => !v)}
-            className="mt-0.5 text-[11px] text-muted-foreground hover:text-primary"
-          >
-            الهدف: <span className="tabular">{fmt(item.target)}</span> — تعديل
-          </button>
+          <div className="mt-0.5 flex items-center gap-2.5">
+            <button
+              onClick={() => setEditingTarget((v) => !v)}
+              className="text-[11px] text-muted-foreground hover:text-primary"
+            >
+              الهدف: <span className="tabular">{fmt(item.target)}</span> — تعديل
+            </button>
+            {details.length > 0 && (
+              <button
+                onClick={() => setShowDetails((v) => !v)}
+                className="flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                <ListTree className="h-3 w-3" />
+                التفاصيل ({details.length})
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1 rounded-xl border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring/40">
           <input
@@ -186,6 +203,47 @@ function ItemRow({
             />
             <Riyal className="text-xs" />
           </div>
+        </div>
+      )}
+
+      {showDetails && details.length > 0 && (
+        <div className="mt-2 space-y-1.5 rounded-xl bg-muted/50 px-3 py-2.5">
+          <p className="text-[11px] font-medium text-muted-foreground">
+            مصادر معروفة من إجمالي {fmt(actual)} <Riyal className="text-[10px]" /> هذا الشهر:
+          </p>
+          {details.map((t) => (
+            <div
+              key={t.id}
+              className="flex items-center justify-between gap-2 rounded-lg bg-background px-2.5 py-1.5"
+            >
+              <div className="flex min-w-0 items-center gap-1.5">
+                {t.source === "sms" ? (
+                  <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+                ) : (
+                  <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                )}
+                <div className="min-w-0 leading-tight">
+                  <p className="truncate text-xs font-medium">{t.note}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(t.dateISO).toLocaleDateString("ar-SA", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="tabular text-xs font-semibold">{fmt(t.amount)}</span>
+                <button
+                  onClick={() => removeTransaction(t.id)}
+                  title="حذف هذه الحركة (وطرح مبلغها من الإجمالي)"
+                  className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
